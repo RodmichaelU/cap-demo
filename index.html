@@ -347,7 +347,7 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#000;
       <div class="p-step" id="ps-tag">TAG</div>
     </div>
     <div id="fill-progress-wrap"><div id="fill-progress-bar"></div></div>
-    <div id="fill-status">——</div>
+    <div id="fill-status">-</div>
     <div id="fill-classify"></div>
   </div>
   <div id="s3-bottom">
@@ -565,23 +565,49 @@ function renderChart() {
     const ga = glowBars[i] || 0;
     let lc, fc;
     if (b.isGap && !b.isFilled) {
-      lc = '#8B0000'; fc = '#1A0000';
-      if (highlightAllGaps) { ctx.shadowBlur = 8; ctx.shadowColor = '#8B0000'; }
+      // Draw as a full-height void zone — clearly missing data, not a candle
+      const alpha = highlightAllGaps ? 0.28 : 0.16;
+      const glowA = highlightAllGaps ? 0.55 : 0.28;
+      // Red background fill
+      ctx.fillStyle = `rgba(139,0,0,${alpha})`;
+      ctx.fillRect(x - bw/2, PAD.t, bw, CH);
+      // Diagonal stripes
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x - bw/2, PAD.t, bw, CH); ctx.clip();
+      ctx.strokeStyle = `rgba(180,0,0,${glowA})`; ctx.lineWidth = 1;
+      for (let dy = -CH; dy < CH * 2; dy += 5) {
+        ctx.beginPath();
+        ctx.moveTo(x - bw/2, PAD.t + dy);
+        ctx.lineTo(x + bw/2, PAD.t + dy + bw);
+        ctx.stroke();
+      }
+      ctx.restore();
+      // Top/bottom border lines
+      ctx.strokeStyle = `rgba(200,0,0,${glowA})`; ctx.lineWidth = 0.5;
+      ctx.strokeRect(x - bw/2, PAD.t, bw, CH);
+      if (highlightAllGaps) { ctx.shadowBlur = 10; ctx.shadowColor = '#8B0000'; }
     } else if (b.isFilled) {
       lc = b.method === 'API' ? '#1E90FF' : '#FFD700';
       fc = b.method === 'API' ? '#002A5A' : '#3A3000';
       if (ga > 0) { ctx.shadowBlur = 28 * ga; ctx.shadowColor = lc; }
+      const yo = toY(b.o), yc = toY(b.c), yh = toY(b.h), yl = toY(b.l);
+      ctx.strokeStyle = lc; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, yh); ctx.lineTo(x, yl); ctx.stroke();
+      const bt = Math.min(yo, yc), bh = Math.max(Math.abs(yc - yo), 1.5);
+      ctx.fillStyle = fc; ctx.fillRect(x - bw/2, bt, bw, bh);
+      ctx.strokeStyle = lc; ctx.lineWidth = 0.5; ctx.strokeRect(x - bw/2, bt, bw, bh);
     } else {
       lc = b.c >= b.o ? '#00CC44' : '#CC2200';
       fc = b.c >= b.o ? '#003A10' : '#3A0800';
+      const yo = toY(b.o), yc = toY(b.c), yh = toY(b.h), yl = toY(b.l);
+      ctx.strokeStyle = lc; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, yh); ctx.lineTo(x, yl); ctx.stroke();
+      const bt = Math.min(yo, yc), bh = Math.max(Math.abs(yc - yo), 1.5);
+      ctx.fillStyle = fc; ctx.fillRect(x - bw/2, bt, bw, bh);
+      ctx.strokeStyle = lc; ctx.lineWidth = 0.5; ctx.strokeRect(x - bw/2, bt, bw, bh);
     }
-    const yo = toY(b.o), yc = toY(b.c), yh = toY(b.h), yl = toY(b.l);
-    ctx.strokeStyle = lc; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(x, yh); ctx.lineTo(x, yl); ctx.stroke();
-    const bt = Math.min(yo, yc), bh = Math.max(Math.abs(yc - yo), 1.5);
-    ctx.fillStyle = fc; ctx.fillRect(x - bw/2, bt, bw, bh);
-    ctx.strokeStyle = lc; ctx.lineWidth = 0.5; ctx.strokeRect(x - bw/2, bt, bw, bh);
     ctx.shadowBlur = 0;
+    if (b.isGap && !b.isFilled) return; // skip normal candle draw for gaps
   });
 
   // X labels
@@ -776,7 +802,7 @@ function enterS3() {
   document.getElementById('pipeline-sub').classList.remove('show');
   document.getElementById('s3-bottom').classList.remove('show');
   document.getElementById('fill-progress-bar').style.width = '0%';
-  document.getElementById('fill-status').textContent = '——';
+  document.getElementById('fill-status').textContent = '-';
   document.getElementById('fill-classify').innerHTML = '';
   highlightAllGaps = true; renderChart();
 
