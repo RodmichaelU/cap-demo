@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>CAPUOC — Data Integrity Demo</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100vw;height:100vh;overflow:hidden;background:#000;
+  font-family:'Courier New',Courier,monospace;color:#ccc;font-size:12px}
+
+/* ── Header ── */
+#hdr{position:fixed;top:0;left:0;right:0;height:38px;z-index:100;
+  background:#080808;border-bottom:2px solid #1e3a1e;
+  display:flex;align-items:center;padding:0 20px;gap:16px}
+#hdr-title{color:#ff8c00;font-size:15px;font-weight:bold;letter-spacing:3px}
+#hdr-r{margin-left:auto;display:flex;align-items:center;gap:20px;font-size:10px;color:#777;letter-spacing:1px}
+#hdr-clock{color:#999}
+#scene-ind{color:#ff8c00;letter-spacing:2px}
+
+/* ── Chart canvas ── */
+#chart-canvas{position:fixed;top:38px;left:0;z-index:1;display:block;transition:opacity .5s}
+
+/* ── Left ticker panel ── */
+#ticker-panel{position:fixed;top:38px;left:0;width:185px;bottom:30px;z-index:10;
+  background:rgba(5,5,5,0.95);border-right:1px solid #1a1a1a;padding:10px 8px;
+  display:flex;flex-direction:column;gap:8px;transition:opacity .5s}
+.tk-block{background:#0a0a0a;border:1px solid #1a1a1a;border-radius:2px;padding:8px 10px}
+.tk-sym{font-size:13px;font-weight:bold;color:#fff;letter-spacing:1px}
+.tk-meta{font-size:9px;color:#777;letter-spacing:1px;font-weight:normal;margin-left:4px}
+.tk-price{font-size:22px;font-weight:bold;color:#ff8c00;margin:3px 0;letter-spacing:1px}
+.tk-chg{font-size:10px;letter-spacing:1px}
+.tk-chg.up{color:#00cc44}.tk-chg.dn{color:#cc2200}
+.mini-bars{height:28px;display:flex;align-items:flex-end;gap:1px;margin-top:4px}
+.mini-bar{width:4px;border-radius:1px 1px 0 0}
+
+/* Gap counter badge (scene 1) */
+#gap-live{position:fixed;top:50px;right:12px;z-index:30;
+  background:#1a0000;border:1px solid #8B0000;padding:8px 14px;text-align:right;
+  opacity:0;transition:opacity .4s}
+#gap-live.show{opacity:1}
+#gap-live-n{font-size:28px;font-weight:bold;color:#ff4444;line-height:1}
+#gap-live-l{font-size:9px;color:#cc4444;letter-spacing:2px;margin-top:2px}
+
+/* ── Scene overlays ── */
+.s-overlay{position:fixed;top:38px;left:0;right:0;bottom:0;z-index:20;
+  pointer-events:none;opacity:0;transition:opacity .6s ease}
+.s-overlay.active{opacity:1;pointer-events:all}
+
+/* ── Scene 1 ── */
+#s1-text{position:absolute;bottom:50px;left:200px;right:0;
+  display:flex;flex-direction:column;align-items:center;padding:10px}
+.s1-counter{font-size:52px;font-weight:bold;color:#ff8c00;letter-spacing:4px;
+  text-shadow:0 0 30px rgba(255,140,0,0.4)}
+.s1-unit{font-size:13px;color:#aaa;letter-spacing:4px;margin-top:4px}
+.s1-caption{font-size:11px;color:#999;letter-spacing:1px;margin-top:8px;
+  max-width:500px;text-align:center;line-height:1.8;opacity:0;transition:opacity 1s}
+
+/* ── Scene 2 ── */
+#s2-top{position:absolute;top:16px;left:200px;right:0;
+  display:flex;flex-direction:column;align-items:center;gap:12px}
+#s2-main-badge{border:1px solid #ff4444;background:#110000;padding:16px 32px;
+  text-align:center;opacity:0;transition:opacity .5s}
+#s2-main-badge.show{opacity:1}
+.s2-count{font-size:42px;font-weight:bold;color:#ff4444;line-height:1;letter-spacing:2px}
+.s2-count-lbl{font-size:11px;color:#cc5555;letter-spacing:3px;margin-top:4px}
+.s2-sub{font-size:10px;color:#bb7777;letter-spacing:2px;margin-top:6px}
+#ts-strip{position:absolute;bottom:6px;left:200px;right:0;
+  display:flex;justify-content:center;gap:0}
+.ts-slot{padding:5px 10px;border:1px solid #1a1a1a;background:#080808;
+  color:#777;font-size:10px;letter-spacing:1px}
+.ts-slot.missing{border-color:#8B0000;background:#110000;color:#ff4444;font-weight:bold;
+  animation:pulse-red 1.2s infinite}
+.ts-slot.missing-cont{border-color:#8B0000;background:#110000;color:#ff4444;font-weight:bold;
+  animation:pulse-red 1.2s infinite;border-left-width:0}
+@keyframes pulse-red{0%,100%{box-shadow:none}50%{box-shadow:0 0 10px #8B0000}}
+
+/* ── Scene 3 ── */
+#pipeline-wrap{position:absolute;top:10px;left:200px;right:0;
+  display:flex;flex-direction:column;align-items:center;gap:8px;padding:6px 0}
+.pipeline-row{display:flex;align-items:center;gap:0}
+.p-step{padding:7px 15px;border:1px solid #1a1a1a;background:#080808;
+  color:#666;letter-spacing:2px;font-size:11px;transition:all .35s;min-width:88px;text-align:center}
+.p-step.active{border-color:#ff8c00;color:#ff8c00;background:#ff8c0018;
+  box-shadow:0 0 10px rgba(255,140,0,0.25)}
+.p-step.done{border-color:#00cc44;color:#00cc44;background:#00cc4410}
+.p-arrow{color:#444;padding:0 5px;font-size:11px;transition:color .3s}
+.p-arrow.lit{color:#888}
+#fill-progress-wrap{width:360px;background:#0a0a0a;border:1px solid #1a1a1a;height:4px;overflow:hidden}
+#fill-progress-bar{height:100%;width:0%;transition:width .25s}
+#fill-status{font-size:10px;color:#999;letter-spacing:2px;text-align:center}
+/* Classification callout */
+#fill-classify{font-size:10px;letter-spacing:1px;text-align:center;
+  min-height:16px;transition:opacity .2s}
+#fill-classify .why-api{color:#1E90FF}
+#fill-classify .why-ml{color:#FFD700}
+#pipeline-label{font-size:18px;font-weight:bold;color:#ff8c00;letter-spacing:4px;
+  text-align:center;opacity:0;transition:opacity .4s}
+#pipeline-label.show{opacity:1}
+#pipeline-sub{font-size:9px;color:#aaa;letter-spacing:1px;text-align:center;
+  max-width:500px;opacity:0;transition:opacity .4s;line-height:1.8}
+#pipeline-sub.show{opacity:1}
+/* Bottom label panel — sits above chart with solid backdrop */
+#s3-bottom{position:absolute;bottom:0;left:185px;right:0;
+  background:#080808;border-top:1px solid #1e3a1e;
+  padding:16px 20px;display:flex;flex-direction:column;align-items:center;gap:8px;
+  opacity:0;transition:opacity .4s}
+#s3-bottom.show{opacity:1}
+
+/* ── Scene 4 ── */
+#tag-wrap{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  display:flex;flex-direction:column;align-items:center;gap:14px;
+  opacity:0;transition:opacity .5s}
+#tag-wrap.show{opacity:1}
+.tag-card{border:1px solid #1a1a1a;overflow:hidden;min-width:320px}
+.tag-row{padding:11px 18px;font-size:11px;letter-spacing:1px;
+  display:flex;align-items:center;gap:10px;line-height:1.4}
+.tag-row.native{background:#0a0a0a;color:#aaa;border-bottom:1px solid #1a1a1a}
+.tag-row.mod-api{background:#001020;color:#1E90FF;border-bottom:1px solid #0a1a2a}
+.tag-row.mod-ml{background:#201800;color:#FFD700}
+.tag-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.tag-dot.n{background:#222}.tag-dot.a{background:#1E90FF}.tag-dot.m{background:#FFD700}
+.tag-caption{font-size:11px;color:#aaa;letter-spacing:2px;text-align:center}
+.tag-trace{font-size:9px;color:#888;letter-spacing:1px;text-align:center;margin-top:4px;max-width:380px;line-height:1.6}
+
+/* ── Scene 5 ── */
+#s5-chart-area{position:absolute;inset:0}
+#s5-overlay{position:absolute;bottom:0;left:185px;right:0;
+  background:rgba(0,0,0,0.88);border-top:1px solid #1a1a1a;
+  padding:14px 20px;display:flex;align-items:center;gap:40px;
+  opacity:0;transition:opacity .4s}
+#s5-overlay.show{opacity:1}
+.s5-block{display:flex;flex-direction:column;align-items:center;gap:3px}
+.s5-num{font-size:52px;font-weight:bold;color:#ff8c00;letter-spacing:2px;line-height:1;
+  text-shadow:0 0 20px rgba(255,140,0,0.5);transition:transform .1s}
+.s5-lbl{font-size:9px;color:#aaa;letter-spacing:3px}
+.s5-ctx{font-size:9px;color:#888;letter-spacing:1px;margin-top:2px}
+.s5-divider{width:1px;height:60px;background:#1a1a1a;flex-shrink:0}
+.s5-tags{display:flex;flex-direction:column;gap:6px}
+.s5-tag{font-size:9px;color:#aaa;letter-spacing:2px;border:1px solid #333;
+  padding:4px 10px;background:#050505}
+.s5-tag span{margin-right:6px}
+
+/* ── Scene 6 ── */
+#s6{background:#000}
+#dash-content{position:absolute;inset:0;display:flex;flex-direction:column;padding:14px 16px}
+#dash-title{font-size:11px;color:#ff8c00;letter-spacing:3px;margin-bottom:10px}
+#kpi-row{display:flex;gap:8px;flex-shrink:0;margin-bottom:10px}
+.d-kpi{flex:1;background:#0a0a0a;border:1px solid #1a1a1a;padding:9px 12px;border-radius:2px;
+  opacity:0;transform:translateY(8px);transition:all .4s}
+.d-kpi.show{opacity:1;transform:translateY(0)}
+.d-kpi-lbl{font-size:9px;color:#aaa;letter-spacing:1px;margin-bottom:3px}
+.d-kpi-val{font-size:24px;font-weight:bold;line-height:1.1}
+.d-kpi-sub{font-size:9px;color:#888;margin-top:2px}
+.vo{color:#ff8c00}.vg{color:#00cc44}.vb{color:#1E90FF}.vy{color:#FFD700}.vr{color:#ff4444}
+#symbol-grid{flex:1;display:grid;grid-template-columns:repeat(3,1fr);
+  grid-template-rows:repeat(2,1fr);gap:8px;min-height:0}
+.sym-cell{background:#050505;border:1px solid #111;padding:10px;
+  opacity:0;transition:all .4s;display:flex;flex-direction:column;gap:4px}
+.sym-cell.show{opacity:1}
+.sym-lbl{font-size:11px;color:#ff8c00;font-weight:bold;letter-spacing:1px}
+.sym-meta{font-size:9px;color:#888;letter-spacing:1px}
+.sym-counts{font-size:10px;color:#aaa}
+.sym-bar{height:3px;background:#0d0d0d;overflow:hidden;margin-top:auto}
+.sym-fill{height:100%;width:0%;transition:width 1.2s ease}
+.fill-api{background:#1E90FF}.fill-ml{background:#FFD700}
+#dash-caption{font-size:11px;color:#aaa;letter-spacing:3px;text-align:center;
+  padding:8px 0;flex-shrink:0;opacity:0;transition:opacity 1s;text-transform:uppercase}
+#dash-caption.show{opacity:1}
+
+/* ── Scene 7 ── */
+#s7{background:#000}
+#hero-canvas{position:absolute;inset:0;z-index:0}
+#hero-content{position:absolute;inset:0;z-index:1;display:flex;
+  flex-direction:column;align-items:center;justify-content:center;gap:14px}
+.h-el{opacity:0;transition:opacity 1s}
+.h-el.show{opacity:1}
+#hero-logo{font-size:14px;color:#ff8c00;letter-spacing:8px;font-weight:bold}
+#hero-line{width:80px;height:1px;background:#1e3a1e}
+#hero-title{font-size:24px;font-weight:bold;color:#ccc;letter-spacing:3px;
+  text-align:center;line-height:1.7;max-width:680px;transition:opacity 1.2s .8s !important}
+#hero-sub{font-size:10px;color:#888;letter-spacing:3px;transition:opacity 1s 2s !important}
+
+/* ── Nav ── */
+#nav{position:fixed;bottom:8px;left:0;right:0;z-index:200;
+  display:flex;align-items:center;justify-content:center;gap:12px}
+.nav-dot{width:7px;height:7px;border-radius:50%;border:1px solid #2a2a2a;
+  background:#0a0a0a;cursor:pointer;transition:all .3s}
+.nav-dot.on{background:#ff8c00;border-color:#ff8c00}
+#nav-hint{position:fixed;bottom:7px;right:14px;font-size:9px;color:#555;
+  letter-spacing:1px;z-index:200}
+
+/* ── Mobile ── */
+@media (max-width:700px){
+  #ticker-panel{display:none}
+  #nav-hint{display:none}
+  /* Scene content: remove left offset that accounted for ticker panel */
+  #s1-text{left:0;padding:10px 16px}
+  #s2-top{left:0;padding:0 12px}
+  #ts-strip{left:0;flex-wrap:wrap;justify-content:center;padding:0 4px}
+  .ts-slot{padding:4px 6px;font-size:9px}
+  #pipeline-wrap{left:0;padding:4px 8px}
+  #s3-bottom{left:0}
+  #s5-overlay{left:0;flex-direction:column;align-items:center;gap:10px;padding:10px 16px}
+  .s5-divider{width:80px;height:1px}
+  .s5-tags{align-items:center}
+  /* Smaller headline numbers */
+  .s1-counter{font-size:38px}
+  .s1-unit{font-size:10px;letter-spacing:2px}
+  .s1-caption{font-size:10px}
+  .s2-count{font-size:32px}
+  .s5-num{font-size:36px}
+  /* Pipeline steps: shrink so they fit on one row */
+  .p-step{padding:5px 8px;font-size:9px;min-width:54px;letter-spacing:1px}
+  .p-arrow{font-size:9px;padding:0 2px}
+  #fill-progress-wrap{width:90vw}
+  /* Tag card full width */
+  .tag-card{min-width:unset;width:90vw}
+  #tag-wrap{width:94vw}
+  /* Scene 6: KPI wrap + 2-col symbol grid */
+  #kpi-row{flex-wrap:wrap}
+  .d-kpi{flex:1 1 calc(33% - 6px);min-width:0}
+  #symbol-grid{grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(3,1fr)}
+  /* Scene 7 */
+  #hero-title{font-size:16px;letter-spacing:2px;padding:0 20px}
+  /* Gap badge */
+  #gap-live{right:4px;top:46px;padding:6px 10px}
+  #gap-live-n{font-size:22px}
+  /* Header */
+  #hdr-title{font-size:12px;letter-spacing:2px}
+  #hdr-r{gap:10px;font-size:9px}
+}
+/* Auto-loop indicator */
+#auto-ind{font-size:9px;letter-spacing:2px;padding:2px 8px;border:1px solid #1e3a1e;
+  cursor:pointer;user-select:none;transition:color .3s,border-color .3s}
+#auto-ind.playing{color:#00cc44;border-color:#00cc44}
+#auto-ind.paused{color:#555;border-color:#333}
+/* Progress bar for scene duration */
+#scene-progress{position:fixed;top:36px;left:0;right:0;height:2px;z-index:101;
+  background:transparent}
+#scene-progress-bar{height:100%;width:0%;background:#ff8c00;opacity:0.5;
+  transition:none}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div id="hdr">
+  <span id="hdr-title">&#9642; CAPUOC &nbsp;|&nbsp; DATA INTEGRITY SYSTEM</span>
+  <div id="hdr-r">
+    <span id="hdr-clock">──</span>
+    <span id="scene-ind">SCENE 1 / 7</span>
+    <span id="auto-ind" class="playing" onclick="toggleAuto()">&#9654; AUTO</span>
+  </div>
+</div>
+<div id="scene-progress"><div id="scene-progress-bar"></div></div>
+
+<!-- Chart canvas (scenes 1–5) -->
+<canvas id="chart-canvas"></canvas>
+
+<!-- Live gap counter (scene 1) -->
+<div id="gap-live">
+  <div id="gap-live-n">0</div>
+  <div id="gap-live-l">GAPS DETECTED</div>
+</div>
+
+<!-- Left ticker panel -->
+<div id="ticker-panel">
+  <div class="tk-block">
+    <div class="tk-sym">RY <span class="tk-meta">CAD &middot; ASK</span></div>
+    <div class="tk-price" id="ry-price">132.48</div>
+    <div class="tk-chg up" id="ry-chg">&#9650; +0.03</div>
+    <div class="mini-bars" id="ry-mini"></div>
+  </div>
+  <div class="tk-block">
+    <div class="tk-sym">TD <span class="tk-meta">CAD &middot; ASK</span></div>
+    <div class="tk-price" id="td-price">87.12</div>
+    <div class="tk-chg dn" id="td-chg">&#9660; -0.01</div>
+    <div class="mini-bars" id="td-mini"></div>
+  </div>
+  <div class="tk-block">
+    <div class="tk-sym">BMO <span class="tk-meta">CAD &middot; ASK</span></div>
+    <div class="tk-price" id="bmo-price">124.35</div>
+    <div class="tk-chg up" id="bmo-chg">&#9650; +0.08</div>
+    <div class="mini-bars" id="bmo-mini"></div>
+  </div>
+  <div class="tk-block">
+    <div class="tk-sym">ENB <span class="tk-meta">CAD &middot; ASK</span></div>
+    <div class="tk-price" id="enb-price">54.67</div>
+    <div class="tk-chg dn" id="enb-chg">&#9660; -0.04</div>
+    <div class="mini-bars" id="enb-mini"></div>
+  </div>
+  <div class="tk-block">
+    <div class="tk-sym">CNQ <span class="tk-meta">CAD &middot; ASK</span></div>
+    <div class="tk-price" id="cnq-price">43.91</div>
+    <div class="tk-chg up" id="cnq-chg">&#9650; +0.02</div>
+    <div class="mini-bars" id="cnq-mini"></div>
+  </div>
+  <div class="tk-block">
+    <div class="tk-sym">BTO <span class="tk-meta">CAD &middot; ASK</span></div>
+    <div class="tk-price" id="bto-price">19.42</div>
+    <div class="tk-chg dn" id="bto-chg">&#9660; -0.01</div>
+    <div class="mini-bars" id="bto-mini"></div>
+  </div>
+  <div style="margin-top:auto;border-top:1px solid #111;padding-top:8px">
+    <div style="font-size:9px;color:#555;letter-spacing:1px;margin-bottom:4px">LIVE FEED</div>
+    <div id="feed-log" style="font-size:9px;color:#666;line-height:2;max-height:110px;overflow:hidden"></div>
+  </div>
+</div>
+
+<!-- ── Scene 1: Data is flowing in ── -->
+<div class="s-overlay active" id="s1">
+  <div id="s1-text">
+    <div class="s1-counter" id="s1-counter">0</div>
+    <div class="s1-unit">MARKET DATAPOINTS / MONTH</div>
+    <div class="s1-caption" id="s1-caption">
+      TTG ingests over 100 million market datapoints per month across multiple asset classes.<br>
+      The challenge isn&rsquo;t getting data in &mdash; it&rsquo;s keeping it complete, trustworthy, and usable.
+    </div>
+  </div>
+</div>
+
+<!-- ── Scene 2: Gap occurs ── -->
+<div class="s-overlay" id="s2">
+  <div id="s2-top">
+    <div id="s2-main-badge">
+      <div class="s2-count" id="s2-count-n">0</div>
+      <div class="s2-count-lbl">MISSING BARS DETECTED</div>
+      <div class="s2-sub">Manual detection and correction do not scale.</div>
+    </div>
+  </div>
+  <div id="ts-strip"></div>
+</div>
+
+<!-- ── Scene 3: The filling ── -->
+<div class="s-overlay" id="s3">
+  <div id="pipeline-wrap">
+    <div class="pipeline-row">
+      <div class="p-step" id="ps-detect">DETECT</div>
+      <div class="p-arrow" id="pa-1">&#9654;</div>
+      <div class="p-step" id="ps-classify">CLASSIFY</div>
+      <div class="p-arrow" id="pa-2">&#9654;</div>
+      <div class="p-step" id="ps-fill">FILL</div>
+      <div class="p-arrow" id="pa-3">&#9654;</div>
+      <div class="p-step" id="ps-validate">VALIDATE</div>
+      <div class="p-arrow" id="pa-4">&#9654;</div>
+      <div class="p-step" id="ps-tag">TAG</div>
+    </div>
+    <div id="fill-progress-wrap"><div id="fill-progress-bar"></div></div>
+    <div id="fill-status">——</div>
+    <div id="fill-classify"></div>
+  </div>
+  <div id="s3-bottom">
+    <div id="pipeline-label">AUTOMATED REMEDIATION</div>
+    <div id="pipeline-sub">
+      Large continuous gaps trigger an <span style="color:#1E90FF">API re-pull</span> workflow.<br>
+      Scattered isolated gaps are resolved using <span style="color:#FFD700">machine learning fill</span>.
+    </div>
+  </div>
+</div>
+
+<!-- ── Scene 4: Tagging ── -->
+<div class="s-overlay" id="s4">
+  <div id="tag-wrap">
+    <div style="font-size:9px;color:#888;letter-spacing:3px;margin-bottom:6px">DATA PROVENANCE</div>
+    <div class="tag-card">
+      <div class="tag-row native">
+        <div class="tag-dot n"></div>
+        NATIVE &nbsp;&mdash;&nbsp; <span style="color:#888">Original ingested bar &nbsp;&middot;&nbsp; unmodified</span>
+      </div>
+      <div class="tag-row mod-api">
+        <div class="tag-dot a"></div>
+        MODIFIED (API) &nbsp;&mdash;&nbsp; <span style="color:#5a9acc">Market data re-pull &nbsp;&middot;&nbsp; large continuous gap</span>
+      </div>
+      <div class="tag-row mod-ml">
+        <div class="tag-dot m"></div>
+        MODIFIED (ML FILL) &nbsp;&mdash;&nbsp; <span style="color:#cc9933">Machine learning prediction &nbsp;&middot;&nbsp; isolated gap</span>
+      </div>
+    </div>
+    <div class="tag-caption">Every correction is traceable.</div>
+    <div class="tag-trace">
+      Original data remains native &mdash; reconstructed data is explicitly tagged as modified.<br>
+      This turns the system from a &ldquo;cool tool&rdquo; into institutional-grade data governance.
+    </div>
+  </div>
+</div>
+
+<!-- ── Scene 5: Speed it up ── -->
+<div class="s-overlay" id="s5">
+  <div id="s5-chart-area"></div>
+  <div id="s5-overlay">
+    <div class="s5-block">
+      <div class="s5-num" id="s5-screen-n">0</div>
+      <div class="s5-lbl">ON-SCREEN FILLS</div>
+      <div class="s5-ctx">this instrument &middot; today</div>
+    </div>
+    <div class="s5-divider"></div>
+    <div class="s5-block">
+      <div class="s5-num" id="s5-sys-n" style="color:#ccc">0</div>
+      <div class="s5-lbl">SYSTEM-WIDE GAPS RESOLVED</div>
+      <div class="s5-ctx" id="s5-sys-ctx">across all instruments &middot; all trading days</div>
+    </div>
+    <div class="s5-divider"></div>
+    <div class="s5-tags">
+      <div class="s5-tag"><span style="color:#1E90FF">&#9632;</span> API RE-PULL &mdash; continuous gap blocks</div>
+      <div class="s5-tag"><span style="color:#FFD700">&#9632;</span> ML FILL &mdash; isolated scattered gaps</div>
+      <div class="s5-tag"><span style="color:#00cc44">&#9632;</span> BUILT TO SCALE &mdash; continuous integrity</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Scene 6: Dashboard ── -->
+<div class="s-overlay" id="s6">
+  <div id="dash-content">
+    <div id="dash-title">&#9642; CAPUOC &nbsp;|&nbsp; GAP ANALYSIS DASHBOARD &nbsp;&mdash;&nbsp; PRODUCTION VIEW</div>
+    <div id="kpi-row">
+      <div class="d-kpi" id="dk1"><div class="d-kpi-lbl">TOTAL GAP BARS</div><div class="d-kpi-val vr" id="dk1v">0</div><div class="d-kpi-sub">missing 1-min bars</div></div>
+      <div class="d-kpi" id="dk2"><div class="d-kpi-lbl">INSTRUMENTS</div><div class="d-kpi-val vo" id="dk2v">0</div><div class="d-kpi-sub">affected</div></div>
+      <div class="d-kpi" id="dk3"><div class="d-kpi-lbl">API RE-PULLS</div><div class="d-kpi-val vb" id="dk3v">0</div><div class="d-kpi-sub">large continuous gaps</div></div>
+      <div class="d-kpi" id="dk4"><div class="d-kpi-lbl">ML FILLS</div><div class="d-kpi-val vy" id="dk4v">0</div><div class="d-kpi-sub">isolated scattered gaps</div></div>
+      <div class="d-kpi" id="dk5"><div class="d-kpi-lbl">COMPLETION</div><div class="d-kpi-val vg" id="dk5v">0%</div><div class="d-kpi-sub">gaps resolved</div></div>
+    </div>
+    <div id="symbol-grid">
+      <div class="sym-cell" id="sc0"><div class="sym-lbl">RY</div><div class="sym-meta">CAD &middot; ASK &middot; API RE-PULL</div><div class="sym-counts" id="scs0">0 / 0 filled</div><div class="sym-bar"><div class="sym-fill fill-api" id="scf0"></div></div></div>
+      <div class="sym-cell" id="sc1"><div class="sym-lbl">TD</div><div class="sym-meta">CAD &middot; ASK &middot; API RE-PULL</div><div class="sym-counts" id="scs1">0 / 0 filled</div><div class="sym-bar"><div class="sym-fill fill-api" id="scf1"></div></div></div>
+      <div class="sym-cell" id="sc2"><div class="sym-lbl">BTO</div><div class="sym-meta">CAD &middot; ASK &middot; ML FILL</div><div class="sym-counts" id="scs2">0 / 0 filled</div><div class="sym-bar"><div class="sym-fill fill-ml" id="scf2"></div></div></div>
+      <div class="sym-cell" id="sc3"><div class="sym-lbl">BMO</div><div class="sym-meta">CAD &middot; ASK &middot; API RE-PULL</div><div class="sym-counts" id="scs3">0 / 0 filled</div><div class="sym-bar"><div class="sym-fill fill-api" id="scf3"></div></div></div>
+      <div class="sym-cell" id="sc4"><div class="sym-lbl">ENB</div><div class="sym-meta">CAD &middot; ASK &middot; ML FILL</div><div class="sym-counts" id="scs4">0 / 0 filled</div><div class="sym-bar"><div class="sym-fill fill-ml" id="scf4"></div></div></div>
+      <div class="sym-cell" id="sc5"><div class="sym-lbl">CNQ</div><div class="sym-meta">CAD &middot; ASK &middot; ML FILL</div><div class="sym-counts" id="scs5">0 / 0 filled</div><div class="sym-bar"><div class="sym-fill fill-ml" id="scf5"></div></div></div>
+    </div>
+    <div id="dash-caption">Maintaining integrity across the database</div>
+  </div>
+</div>
+
+<!-- ── Scene 7: Hero ── -->
+<div class="s-overlay" id="s7">
+  <canvas id="hero-canvas"></canvas>
+  <div id="hero-content">
+    <div id="hero-logo"  class="h-el">&#9642; CAPUOC</div>
+    <div id="hero-line"  class="h-el"></div>
+    <div id="hero-title" class="h-el">UPHOLDING THE INTEGRITY OF<br>EQUITY PRICES IN YOUR DATABASE</div>
+    <div id="hero-sub"   class="h-el">UNIVERSITY OF CALGARY &nbsp;&middot;&nbsp; 2026</div>
+  </div>
+</div>
+
+<!-- Nav -->
+<div id="nav">
+  <div class="nav-dot on" onclick="goScene(1)"></div>
+  <div class="nav-dot"   onclick="goScene(2)"></div>
+  <div class="nav-dot"   onclick="goScene(3)"></div>
+  <div class="nav-dot"   onclick="goScene(4)"></div>
+  <div class="nav-dot"   onclick="goScene(5)"></div>
+  <div class="nav-dot"   onclick="goScene(6)"></div>
+  <div class="nav-dot"   onclick="goScene(7)"></div>
+</div>
+<div id="nav-hint">SPACE / &rarr; advance &nbsp;&middot;&nbsp; &larr; back &nbsp;&middot;&nbsp; 1-7 jump</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// Seeded RNG
+// ─────────────────────────────────────────────────────────────────────────────
+function mkRng(seed) {
+  let s = seed >>> 0;
+  return () => { s = (Math.imul(s ^ s >>> 13, s | 7)) >>> 0; return s / 0xFFFFFFFF; };
+}
+const rng = mkRng(0xCAFC0DE);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bar data
+// GAP design: indices 29-35 = 7 CONSECUTIVE bars (large block → API re-pull)
+//             scattered singles elsewhere → ML fill
+// ─────────────────────────────────────────────────────────────────────────────
+const GAP_IDXS   = [5, 12, 19, 29, 30, 31, 32, 33, 34, 35, 44, 51, 58, 64, 70, 77];
+//                  ML  ML  ML  ←────── API block (7 consecutive) ──────→ ML  ML  ML  ML  ML  ML
+const GAP_METHOD = ['ML','ML','ML','API','API','API','API','API','API','API','ML','ML','ML','ML','ML','ML'];
+const GAP_SET    = new Set(GAP_IDXS);
+const TOTAL_BARS = 88;
+
+const BARS = [];
+(function genBars() {
+  let price = 132.5;
+  for (let i = 0; i < TOTAL_BARS; i++) {
+    const m  = 7 * 60 + 30 + i;
+    const ts = String(Math.floor(m / 60)).padStart(2,'0') + ':' + String(m % 60).padStart(2,'0');
+    const gi = GAP_IDXS.indexOf(i);
+    const chg = (rng() - 0.49) * 0.30;
+    const o = price, c = price + chg;
+    const h = Math.max(o,c) + rng() * 0.14;
+    const l = Math.min(o,c) - rng() * 0.14;
+    price = c;
+    if (gi !== -1) {
+      BARS.push({ ts, i, isGap: true, isFilled: false, method: GAP_METHOD[gi],
+        o: +o.toFixed(3), h: +h.toFixed(3), l: +l.toFixed(3), c: +c.toFixed(3) });
+    } else {
+      BARS.push({ ts, i, isGap: false, isFilled: false,
+        o: +o.toFixed(3), h: +h.toFixed(3), l: +l.toFixed(3), c: +c.toFixed(3) });
+    }
+  }
+})();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Canvas chart
+// ─────────────────────────────────────────────────────────────────────────────
+const cvs = document.getElementById('chart-canvas');
+const ctx = cvs.getContext('2d');
+let visibleCount = 0;
+let glowBars = {};
+let highlightAllGaps = false;
+
+function resizeCanvas() {
+  cvs.width  = window.innerWidth;
+  cvs.height = window.innerHeight - 38;
+  renderChart();
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+function renderChart() {
+  const W = cvs.width, H = cvs.height;
+  ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, W, H);
+
+  const n = Math.min(visibleCount, BARS.length);
+  if (n === 0) return;
+  const bars = BARS.slice(0, n);
+
+  const mobile = W <= 700;
+  const PAD = { l: mobile ? 6 : 185, r: mobile ? 38 : 62, t:22, b:32 };
+  const CW  = W - PAD.l - PAD.r, CH = H - PAD.t - PAD.b;
+  const prices = bars.flatMap(b => [b.h, b.l]);
+  const minP = Math.min(...prices) - 0.08;
+  const maxP = Math.max(...prices) + 0.08;
+  const pRng = maxP - minP || 1;
+
+  const step = CW / TOTAL_BARS;
+  const bw   = Math.max(3, step - 1.5);
+  const toX  = i => PAD.l + i * step + step / 2;
+  const toY  = p => PAD.t + (1 - (p - minP) / pRng) * CH;
+
+  // Grid
+  ctx.lineWidth = 0.5;
+  for (let r = 0; r <= 4; r++) {
+    const y = PAD.t + (r / 4) * CH;
+    ctx.strokeStyle = '#0e0e0e';
+    ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(W - PAD.r, y); ctx.stroke();
+    ctx.fillStyle = '#333'; ctx.font = '9px Courier New'; ctx.textAlign = 'right';
+    ctx.fillText((maxP - (r/4)*pRng).toFixed(2), W - (mobile ? 2 : PAD.r - 54), y + 3);
+  }
+
+  // Draw a bracket to label the continuous block
+  if (visibleCount > 35 && highlightAllGaps) {
+    const x0 = toX(29) - bw/2 - 2;
+    const x1 = toX(35) + bw/2 + 2;
+    const yTop = PAD.t - 14;
+    ctx.strokeStyle = '#1E90FF'; ctx.lineWidth = 1;
+    ctx.setLineDash([3,3]);
+    ctx.strokeRect(x0, PAD.t - 2, x1 - x0, CH + 4);
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#1E90FF'; ctx.font = 'bold 8px Courier New'; ctx.textAlign = 'center';
+    ctx.fillText('CONTINUOUS BLOCK  \u2192  API RE-PULL', (x0+x1)/2, yTop);
+  }
+
+  // Bars
+  bars.forEach((b, i) => {
+    const x = toX(i);
+    const ga = glowBars[i] || 0;
+    let lc, fc;
+    if (b.isGap && !b.isFilled) {
+      lc = '#8B0000'; fc = '#1A0000';
+      if (highlightAllGaps) { ctx.shadowBlur = 8; ctx.shadowColor = '#8B0000'; }
+    } else if (b.isFilled) {
+      lc = b.method === 'API' ? '#1E90FF' : '#FFD700';
+      fc = b.method === 'API' ? '#002A5A' : '#3A3000';
+      if (ga > 0) { ctx.shadowBlur = 28 * ga; ctx.shadowColor = lc; }
+    } else {
+      lc = b.c >= b.o ? '#00CC44' : '#CC2200';
+      fc = b.c >= b.o ? '#003A10' : '#3A0800';
+    }
+    const yo = toY(b.o), yc = toY(b.c), yh = toY(b.h), yl = toY(b.l);
+    ctx.strokeStyle = lc; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, yh); ctx.lineTo(x, yl); ctx.stroke();
+    const bt = Math.min(yo, yc), bh = Math.max(Math.abs(yc - yo), 1.5);
+    ctx.fillStyle = fc; ctx.fillRect(x - bw/2, bt, bw, bh);
+    ctx.strokeStyle = lc; ctx.lineWidth = 0.5; ctx.strokeRect(x - bw/2, bt, bw, bh);
+    ctx.shadowBlur = 0;
+  });
+
+  // X labels
+  ctx.fillStyle = '#2a2a2a'; ctx.font = '9px Courier New'; ctx.textAlign = 'center';
+  [0,15,30,45,60,75].forEach(i => { if (i < n) ctx.fillText(BARS[i].ts, toX(i), H - 12); });
+
+  // Chart label
+  ctx.fillStyle = '#ff8c00'; ctx.font = 'bold 11px Courier New'; ctx.textAlign = 'left';
+  ctx.fillText('RY  \u00b7  CAD  \u00b7  ASK  \u00b7  1-MIN BARS', PAD.l + 4, PAD.t - 6);
+}
+
+function addGlow(idx) {
+  glowBars[idx] = 1;
+  renderChart();
+  let v = 1;
+  const fade = () => {
+    v -= 0.05; glowBars[idx] = Math.max(0, v); renderChart();
+    if (v > 0) sceneTimers.push(setTimeout(fade, 35));
+    else delete glowBars[idx];
+  };
+  sceneTimers.push(setTimeout(fade, 280));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ticker
+// ─────────────────────────────────────────────────────────────────────────────
+const TK = {
+  ry:  { price:132.48, base:132.48, vol:0.07, pEl:'ry-price',  cEl:'ry-chg',  mEl:'ry-mini',  hist:[] },
+  td:  { price:87.12,  base:87.12,  vol:0.05, pEl:'td-price',  cEl:'td-chg',  mEl:'td-mini',  hist:[] },
+  bmo: { price:124.35, base:124.35, vol:0.06, pEl:'bmo-price', cEl:'bmo-chg', mEl:'bmo-mini', hist:[] },
+  enb: { price:54.67,  base:54.67,  vol:0.04, pEl:'enb-price', cEl:'enb-chg', mEl:'enb-mini', hist:[] },
+  cnq: { price:43.91,  base:43.91,  vol:0.05, pEl:'cnq-price', cEl:'cnq-chg', mEl:'cnq-mini', hist:[] },
+  bto: { price:19.42,  base:19.42,  vol:0.03, pEl:'bto-price', cEl:'bto-chg', mEl:'bto-mini', hist:[] },
+};
+let tickerTimer = null;
+
+function updateTicker(tk) {
+  const prev = tk.price;
+  tk.price = Math.max(tk.base * 0.92, tk.price + (Math.random() - 0.48) * tk.vol);
+  tk.hist.push(tk.price); if (tk.hist.length > 22) tk.hist.shift();
+  const pEl = document.getElementById(tk.pEl);
+  pEl.textContent = tk.price.toFixed(2);
+  pEl.style.color = tk.price >= prev ? '#00cc44' : '#cc2200';
+  setTimeout(() => pEl.style.color = '#ff8c00', 220);
+  const diff = tk.price - tk.base;
+  const cEl  = document.getElementById(tk.cEl);
+  cEl.textContent = (diff >= 0 ? '▲ +' : '▼ ') + diff.toFixed(2);
+  cEl.className = 'tk-chg ' + (diff >= 0 ? 'up' : 'dn');
+  const mini = document.getElementById(tk.mEl);
+  mini.innerHTML = '';
+  const mn = Math.min(...tk.hist), mx = Math.max(...tk.hist), r2 = mx - mn || 0.01;
+  tk.hist.forEach(p => {
+    const d = document.createElement('div'); d.className = 'mini-bar';
+    d.style.height = (3 + ((p-mn)/r2)*22) + 'px';
+    d.style.background = p >= tk.base ? '#003A10' : '#3A0800';
+    d.style.border = '0.5px solid ' + (p >= tk.base ? '#00cc44' : '#cc2200');
+    mini.appendChild(d);
+  });
+}
+
+function startTickers() {
+  if (tickerTimer) clearInterval(tickerTimer);
+  tickerTimer = setInterval(() => {
+    updateTicker(TK.ry);
+    setTimeout(() => updateTicker(TK.td),  190);
+    setTimeout(() => updateTicker(TK.bmo), 380);
+    setTimeout(() => updateTicker(TK.enb), 570);
+    setTimeout(() => updateTicker(TK.cnq), 760);
+    setTimeout(() => updateTicker(TK.bto), 950);
+    const b = BARS[Math.floor(Math.random() * Math.min(visibleCount || 10, 80))];
+    if (b && !b.isGap) {
+      const el = document.getElementById('feed-log');
+      const row = document.createElement('div');
+      row.textContent = b.ts + '  RY  ' + (132 + (Math.random()-0.5)*0.5).toFixed(2);
+      el.insertBefore(row, el.firstChild);
+      if (el.children.length > 6) el.removeChild(el.lastChild);
+    }
+  }, 680);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Scene management
+// ─────────────────────────────────────────────────────────────────────────────
+let curScene = 1;
+let sceneTimers = [];
+let heroAnimId  = null;
+
+function clearTimers() { sceneTimers.forEach(clearTimeout); sceneTimers = []; }
+function delay(fn, ms) { const t = setTimeout(fn, ms); sceneTimers.push(t); }
+
+function _switchScene(n) {
+  clearTimers();
+  document.querySelectorAll('.s-overlay').forEach(e => e.classList.remove('active'));
+  document.getElementById('s' + n).classList.add('active');
+  document.querySelectorAll('.nav-dot').forEach((d,i) => d.classList.toggle('on', i===n-1));
+  document.getElementById('scene-ind').textContent = 'SCENE ' + n + ' / 7';
+  const showChart = n <= 5;
+  cvs.style.opacity = showChart ? '1' : '0';
+  document.getElementById('ticker-panel').style.opacity = showChart ? '1' : '0';
+  document.getElementById('gap-live').style.opacity = n === 1 ? null : '0';
+  if (n !== 7 && heroAnimId) { cancelAnimationFrame(heroAnimId); heroAnimId = null; }
+  curScene = n;
+  [,enterS1,enterS2,enterS3,enterS4,enterS5,enterS6,enterS7][n]();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// S1 — Data flowing in
+// ─────────────────────────────────────────────────────────────────────────────
+function enterS1() {
+  visibleCount = 0; highlightAllGaps = false; glowBars = {};
+  BARS.forEach(b => { b.isFilled = false; });
+  document.getElementById('gap-live-n').textContent = '0';
+  document.getElementById('gap-live').classList.remove('show');
+  document.getElementById('s1-caption').style.opacity = '0';
+  document.getElementById('s1-counter').textContent = '0';
+  startTickers();
+  renderChart();
+
+  let gapsSeen = 0;
+  function stream() {
+    if (visibleCount >= TOTAL_BARS) {
+      delay(animCounter, 300);
+      delay(() => { document.getElementById('s1-caption').style.opacity = '1'; }, 2000);
+      return;
+    }
+    visibleCount++;
+    const b = BARS[visibleCount - 1];
+    if (b.isGap) {
+      gapsSeen++;
+      document.getElementById('gap-live-n').textContent = gapsSeen;
+      if (gapsSeen === 1) document.getElementById('gap-live').classList.add('show');
+    }
+    renderChart();
+    sceneTimers.push(setTimeout(stream, b.isGap ? 240 : 52));
+  }
+  delay(stream, 500);
+}
+
+function animCounter() {
+  const el = document.getElementById('s1-counter');
+  let v = 0;
+  const tick = () => {
+    v = Math.min(v + 5, 100);
+    el.textContent = v + (v >= 100 ? 'M+' : 'M');
+    if (v < 100) sceneTimers.push(setTimeout(tick, 30));
+  };
+  tick();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// S2 — Gap occurs
+// ─────────────────────────────────────────────────────────────────────────────
+function enterS2() {
+  visibleCount = TOTAL_BARS; highlightAllGaps = false; renderChart();
+  document.getElementById('s2-main-badge').classList.remove('show');
+  document.getElementById('s2-count-n').textContent = '0';
+
+  // Timestamp strip — show the continuous block gap
+  const strip = document.getElementById('ts-strip');
+  strip.innerHTML = '';
+  // Show a window around bar 29-35 (continuous gap block)
+  [26,27,28,29,30,31,32,33,34,35,36,37].forEach(idx => {
+    const d = document.createElement('div');
+    const isM = GAP_SET.has(idx);
+    d.className = 'ts-slot' + (isM ? (idx===29?' missing':' missing-cont') : '');
+    d.textContent = isM ? (idx===29?'\u26a0 MISSING':'\u25a0') : BARS[idx].ts;
+    strip.appendChild(d);
+  });
+
+  delay(() => {
+    highlightAllGaps = true; renderChart();
+    document.getElementById('s2-main-badge').classList.add('show');
+    let v = 0;
+    const tick = () => {
+      v++;
+      document.getElementById('s2-count-n').textContent = v;
+      if (v < GAP_IDXS.length) sceneTimers.push(setTimeout(tick, 80));
+    };
+    tick();
+  }, 500);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// S3 — The filling
+// ─────────────────────────────────────────────────────────────────────────────
+const PSTEPS = ['detect','classify','fill','validate','tag'];
+
+function enterS3() {
+  PSTEPS.forEach(s => document.getElementById('ps-'+s).className = 'p-step');
+  ['pa-1','pa-2','pa-3','pa-4'].forEach(id => document.getElementById(id).className='p-arrow');
+  document.getElementById('pipeline-label').classList.remove('show');
+  document.getElementById('pipeline-sub').classList.remove('show');
+  document.getElementById('s3-bottom').classList.remove('show');
+  document.getElementById('fill-progress-bar').style.width = '0%';
+  document.getElementById('fill-status').textContent = '——';
+  document.getElementById('fill-classify').innerHTML = '';
+  highlightAllGaps = true; renderChart();
+
+  let si = 0;
+  function nextStep() {
+    if (si > 0) {
+      document.getElementById('ps-'+PSTEPS[si-1]).className = 'p-step done';
+      if (si <= 4) document.getElementById('pa-'+si).className = 'p-arrow lit';
+    }
+    if (si < PSTEPS.length) {
+      document.getElementById('ps-'+PSTEPS[si]).className = 'p-step active';
+      si++;
+      if (si === 3) delay(fillAllGaps, 500);
+      delay(nextStep, 1100);
+    } else {
+      delay(() => {
+        document.getElementById('s3-bottom').classList.add('show');
+        document.getElementById('pipeline-label').classList.add('show');
+        delay(() => document.getElementById('pipeline-sub').classList.add('show'), 500);
+      }, 200);
+    }
+  }
+  delay(nextStep, 400);
+}
+
+function fillAllGaps() {
+  highlightAllGaps = false;
+  const total = GAP_IDXS.length;
+  let done = 0;
+  // Track API block vs scattered
+  const apiBlock = GAP_IDXS.filter((_, i) => GAP_METHOD[i] === 'API');
+  const mlGaps   = GAP_IDXS.filter((_, i) => GAP_METHOD[i] === 'ML');
+
+  function fillOne() {
+    if (done >= total) return;
+    const idx    = GAP_IDXS[done];
+    const method = GAP_METHOD[done];
+    BARS[idx].isFilled = true;
+    done++;
+
+    // Classification callout
+    const pct = Math.round(done / total * 100);
+    document.getElementById('fill-progress-bar').style.width = pct + '%';
+    document.getElementById('fill-status').textContent =
+      done + ' / ' + total + ' gaps filled  (' + pct + '%)';
+
+    const clf = document.getElementById('fill-classify');
+    if (method === 'API') {
+      clf.innerHTML = '<span class="why-api">&#9654; CONTINUOUS BLOCK &nbsp;&mdash;&nbsp; API RE-PULL &nbsp;(market data re-ingested)</span>';
+    } else {
+      clf.innerHTML = '<span class="why-ml">&#9654; ISOLATED GAP &nbsp;&mdash;&nbsp; ML FILL &nbsp;(machine learning prediction)</span>';
+    }
+
+    addGlow(idx);
+    delay(fillOne, 320);
+  }
+  fillOne();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// S4 — Tagging
+// ─────────────────────────────────────────────────────────────────────────────
+function enterS4() {
+  document.getElementById('tag-wrap').classList.remove('show');
+  delay(() => document.getElementById('tag-wrap').classList.add('show'), 400);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// S5 — Speed it up (dual counter: on-screen + system-wide)
+// ─────────────────────────────────────────────────────────────────────────────
+function enterS5() {
+  BARS.forEach(b => { b.isFilled = false; });
+  highlightAllGaps = true; visibleCount = TOTAL_BARS; renderChart();
+  document.getElementById('s5-overlay').classList.remove('show');
+  document.getElementById('s5-screen-n').textContent = '0';
+  document.getElementById('s5-sys-n').textContent = '0';
+
+  delay(() => document.getElementById('s5-overlay').classList.add('show'), 300);
+
+  // On-screen: fill 16 gaps
+  let screen = 0;
+  const screenEl = document.getElementById('s5-screen-n');
+  function fillScreen() {
+    if (screen >= GAP_IDXS.length) return;
+    const idx = GAP_IDXS[screen];
+    BARS[idx].isFilled = true;
+    glowBars[idx] = 0.8;
+    screen++;
+    screenEl.textContent = screen;
+    screenEl.style.transform = 'scale(1.12)';
+    setTimeout(() => screenEl.style.transform = 'scale(1)', 100);
+    renderChart();
+    delay(() => { delete glowBars[idx]; renderChart(); }, 200);
+    delay(fillScreen, 220);
+  }
+  delay(fillScreen, 600);
+
+  // System-wide counter: ramp to 3,847 over ~6 seconds
+  const SYS_TARGET = 3847;
+  const sysEl = document.getElementById('s5-sys-n');
+  let sysV = 0;
+  function tickSys() {
+    const remaining = SYS_TARGET - sysV;
+    const step = Math.max(1, Math.floor(remaining / 18));
+    sysV = Math.min(sysV + step, SYS_TARGET);
+    sysEl.textContent = sysV.toLocaleString();
+    if (sysV < SYS_TARGET) sceneTimers.push(setTimeout(tickSys, 80));
+    else {
+      delay(() => {
+        document.getElementById('s5-sys-ctx').textContent =
+          '12 instruments \u00b7 365 trading days \u00b7 100% resolved';
+      }, 400);
+    }
+  }
+  delay(tickSys, 700);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// S6 — Dashboard
+// ─────────────────────────────────────────────────────────────────────────────
+const SYMS = [
+  { gaps:412, api:412, ml:0  },
+  { gaps:287, api:287, ml:0  },
+  { gaps:534, api:0,   ml:534},
+  { gaps:198, api:198, ml:0  },
+  { gaps:621, api:0,   ml:621},
+  { gaps:795, api:0,   ml:795},
+];
+
+function enterS6() {
+  document.querySelectorAll('.d-kpi').forEach(e => e.classList.remove('show'));
+  document.querySelectorAll('.sym-cell').forEach((e,i) => {
+    e.classList.remove('show');
+    document.getElementById('scf'+i).style.width = '0%';
+    document.getElementById('scs'+i).textContent = '0 / 0 filled';
+  });
+  document.getElementById('dash-caption').classList.remove('show');
+
+  const totalGaps = SYMS.reduce((s,x) => s+x.gaps, 0);
+  const totalApi  = SYMS.reduce((s,x) => s+x.api,  0);
+  const totalMl   = SYMS.reduce((s,x) => s+x.ml,   0);
+
+  const kpis = [
+    {id:'dk1',val:totalGaps, sfx:'', d:200},
+    {id:'dk2',val:12,        sfx:'', d:350},
+    {id:'dk3',val:totalApi,  sfx:'', d:500},
+    {id:'dk4',val:totalMl,   sfx:'', d:650},
+    {id:'dk5',val:100,       sfx:'%',d:800},
+  ];
+  kpis.forEach(k => delay(() => {
+    document.getElementById(k.id).classList.add('show');
+    animKpi(k.id+'v', k.val, k.sfx);
+  }, k.d));
+
+  SYMS.forEach((sym, i) => delay(() => {
+    document.getElementById('sc'+i).classList.add('show');
+    delay(() => {
+      document.getElementById('scf'+i).style.width = '100%';
+      document.getElementById('scs'+i).textContent = sym.gaps + ' / ' + sym.gaps + ' filled';
+    }, 300);
+  }, 1100 + i * 220));
+
+  delay(() => document.getElementById('dash-caption').classList.add('show'), 3200);
+}
+
+function animKpi(id, target, sfx) {
+  const el = document.getElementById(id);
+  let v = 0;
+  const step = Math.max(1, Math.ceil(target / 28));
+  const tick = () => {
+    v = Math.min(v + step, target);
+    el.textContent = v.toLocaleString() + sfx;
+    if (v < target) sceneTimers.push(setTimeout(tick, 36));
+  };
+  tick();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// S7 — Hero
+// ─────────────────────────────────────────────────────────────────────────────
+function enterS7() {
+  document.querySelectorAll('.h-el').forEach(e => e.classList.remove('show'));
+  const hcvs = document.getElementById('hero-canvas');
+  hcvs.width = window.innerWidth; hcvs.height = window.innerHeight;
+  const hctx = hcvs.getContext('2d');
+  const pts = Array.from({length:100}, () => ({
+    x: Math.random()*hcvs.width, y: Math.random()*hcvs.height,
+    vx: (Math.random()-0.5)*0.35, vy: -Math.random()*0.5-0.1,
+    a: Math.random()*0.35+0.04, r: Math.random()*1.4+0.4,
+  }));
+  function drawHero() {
+    hctx.clearRect(0,0,hcvs.width,hcvs.height);
+    hctx.strokeStyle='rgba(30,58,30,0.12)'; hctx.lineWidth=0.5;
+    for(let x=0;x<hcvs.width;x+=90){hctx.beginPath();hctx.moveTo(x,0);hctx.lineTo(x,hcvs.height);hctx.stroke();}
+    for(let y=0;y<hcvs.height;y+=64){hctx.beginPath();hctx.moveTo(0,y);hctx.lineTo(hcvs.width,y);hctx.stroke();}
+    pts.forEach(p=>{
+      hctx.beginPath();hctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      hctx.fillStyle=`rgba(255,140,0,${p.a})`;hctx.fill();
+      p.x+=p.vx;p.y+=p.vy;
+      if(p.y<-5){p.y=hcvs.height+5;p.x=Math.random()*hcvs.width;}
+    });
+    heroAnimId = requestAnimationFrame(drawHero);
+  }
+  if (heroAnimId) cancelAnimationFrame(heroAnimId);
+  drawHero();
+  delay(()=>document.getElementById('hero-logo').classList.add('show'),300);
+  delay(()=>document.getElementById('hero-line').classList.add('show'),800);
+  delay(()=>document.getElementById('hero-title').classList.add('show'),1100);
+  delay(()=>document.getElementById('hero-sub').classList.add('show'),2400);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Clock + Keyboard
+// ─────────────────────────────────────────────────────────────────────────────
+setInterval(() => {
+  document.getElementById('hdr-clock').textContent = new Date().toTimeString().slice(0,8);
+}, 1000);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Auto-loop
+// ─────────────────────────────────────────────────────────────────────────────
+// Duration each scene stays before auto-advancing (ms), calibrated to animations
+const SCENE_DURATIONS = [0, 16000, 6000, 16000, 7000, 12000, 8000, 9000];
+
+let autoPaused = false;
+let autoTimer  = null;
+let progressTimer = null;
+let progressStart = 0;
+let progressDuration = 0;
+
+function clearAutoTimer() {
+  if (autoTimer)    { clearTimeout(autoTimer);  autoTimer = null; }
+  if (progressTimer){ clearInterval(progressTimer); progressTimer = null; }
+  document.getElementById('scene-progress-bar').style.width = '0%';
+}
+
+function scheduleAutoAdvance(n) {
+  clearAutoTimer();
+  if (autoPaused) return;
+  const dur = SCENE_DURATIONS[n];
+  // Animate the thin progress bar across the scene duration
+  progressStart    = Date.now();
+  progressDuration = dur;
+  const bar = document.getElementById('scene-progress-bar');
+  bar.style.width = '0%';
+  progressTimer = setInterval(() => {
+    const pct = Math.min(100, (Date.now() - progressStart) / progressDuration * 100);
+    bar.style.width = pct + '%';
+    if (pct >= 100) { clearInterval(progressTimer); progressTimer = null; }
+  }, 80);
+  autoTimer = setTimeout(() => {
+    const next = n < 7 ? n + 1 : 1;
+    goScene(next);
+  }, dur);
+}
+
+function toggleAuto() {
+  autoPaused = !autoPaused;
+  const ind = document.getElementById('auto-ind');
+  if (autoPaused) {
+    ind.className = 'paused';
+    ind.innerHTML = '&#9646;&#9646; PAUSED';
+    clearAutoTimer();
+  } else {
+    ind.className = 'playing';
+    ind.innerHTML = '&#9654; AUTO';
+    scheduleAutoAdvance(curScene);
+  }
+}
+
+function goScene(n) {
+  clearAutoTimer();
+  _switchScene(n);
+  scheduleAutoAdvance(n);
+}
+
+document.addEventListener('keydown', e => {
+  if (e.code==='Space'||e.code==='ArrowRight'){e.preventDefault();if(curScene<7)goScene(curScene+1);}
+  else if(e.code==='ArrowLeft'){e.preventDefault();if(curScene>1)goScene(curScene-1);}
+  else if(e.key>='1'&&e.key<='7') goScene(parseInt(e.key));
+  else if(e.code==='KeyP') toggleAuto();
+});
+
+// Touch swipe navigation
+let _touchX = 0;
+document.addEventListener('touchstart', e => { _touchX = e.touches[0].clientX; }, {passive:true});
+document.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - _touchX;
+  if (Math.abs(dx) > 50) {
+    if (dx < 0 && curScene < 7) goScene(curScene + 1);
+    else if (dx > 0 && curScene > 1) goScene(curScene - 1);
+  }
+}, {passive:true});
+
+goScene(1);
+</script>
+</body>
+</html>

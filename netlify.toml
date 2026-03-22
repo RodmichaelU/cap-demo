@@ -1,0 +1,7 @@
+[build]
+  publish = "Prod-beta/UI"
+
+[[redirects]]
+  from = "/"
+  to   = "/video_demo.html"
+  status = 200
