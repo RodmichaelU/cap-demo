@@ -660,11 +660,12 @@ function updateTicker(tk) {
   const mini = document.getElementById(tk.mEl);
   mini.innerHTML = '';
   const mn = Math.min(...tk.hist), mx = Math.max(...tk.hist), r2 = mx - mn || 0.01;
-  tk.hist.forEach(p => {
+  tk.hist.forEach((p, idx) => {
     const d = document.createElement('div'); d.className = 'mini-bar';
     d.style.height = (3 + ((p-mn)/r2)*22) + 'px';
-    d.style.background = p >= tk.base ? '#003A10' : '#3A0800';
-    d.style.border = '0.5px solid ' + (p >= tk.base ? '#00cc44' : '#cc2200');
+    const up = idx === 0 ? true : p >= tk.hist[idx - 1];
+    d.style.background = up ? '#003A10' : '#3A0800';
+    d.style.border = '0.5px solid ' + (up ? '#00cc44' : '#cc2200');
     mini.appendChild(d);
   });
 }
